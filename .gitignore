@@ -1,3 +1,4 @@
+.venv/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
@@ -5,3 +6,4 @@ figures/
 data/*.csv
 data/*.json
 .env
+*.db
