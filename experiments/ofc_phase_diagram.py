@@ -10,12 +10,9 @@ from tqdm import tqdm
 
 from models.ofc import simulate_ofc
 from utils.powerlaw_fit import gutenberg_richter_b
-from utils.plotting import FIGURES_DIR, _apply_style, _ensure_figures_dir
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
+from utils.plotting import (
+    plot_ofc_phase_diagram as _plot_ofc_phase_diagram,
+    FIGURES_DIR, _ensure_figures_dir)
 
 # experiment parameters
 ALPHA_GRID = np.linspace(0.10, 0.24, 20)
@@ -54,49 +51,10 @@ def run_ofc_phase_diagram():
 
 
 def plot_ofc_phase_diagram(b_means, b_stds):
-    # Plot b-value vs alpha_ofc for each L with std error bars.
-    # L=64:  solid  + circle   (o-)
-    # L=32:  dashed + square   (s--)
-    # L=128: dotted + triangle (^:)
-    # Vertical dashed line where L=64 b-value first drops below 1.0.
-    _ensure_figures_dir()
-    _apply_style()
-
+    # Delegates to utils.plotting.plot_ofc_phase_diagram.
     save_path = os.path.join(FIGURES_DIR, "ofc_phase_diagram.pdf")
-
-    fig, ax = plt.subplots(figsize=(3.3, 2.5))
-    colors = cm.Oranges(np.linspace(0.35, 0.95, len(L_VALUES)))
-
-    _style = {32: ("s", "--"), 64: ("o", "-"), 128: ("^", ":")}
-
-    for i, L in enumerate(L_VALUES):
-        mask = ~np.isnan(b_means[i])
-        yerr = b_stds[i][mask] / np.sqrt(N_SEEDS)
-        marker, ls = _style.get(L, ("o", "-"))
-        ax.errorbar(
-            ALPHA_GRID[mask], b_means[i][mask], yerr=yerr,
-            fmt=marker + ls, markersize=3, linewidth=1,
-            color=colors[i], label=f"L={L}",
-            capsize=2, elinewidth=0.7)
-
-    # critical line: first alpha where L=64 b-value drops below 1.0
-    if 64 in L_VALUES:
-        idx64 = L_VALUES.index(64)
-        b64 = b_means[idx64]
-        below = (~np.isnan(b64)) & (b64 < 1.0)
-        if below.any():
-            alpha_cross = ALPHA_GRID[below][0]
-            ax.axvline(alpha_cross, linestyle="--", color="dimgray",
-                       linewidth=0.8, label=f"b=1 crossing (\u03b1={alpha_cross:.2f})")
-
-    ax.set_xlabel(r"$\alpha_{\mathrm{OFC}}$")
-    ax.set_ylabel("b-value (G-R)")
-    ax.legend(frameon=False)
-    fig.tight_layout()
-    fig.savefig(save_path)
-    plt.close(fig)
-    print(f"Saved: {save_path}")
-    return save_path
+    return _plot_ofc_phase_diagram(
+        b_means, b_stds, ALPHA_GRID, L_VALUES, N_SEEDS, save_path)
 
 
 if __name__ == "__main__":
