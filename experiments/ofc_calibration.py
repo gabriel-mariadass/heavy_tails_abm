@@ -19,10 +19,10 @@ from utils.plotting import (
 )
 
 # MLE grid search parameters
-ALPHA_GRID_MLE = np.linspace(0.10, 0.24, 10)
+ALPHA_GRID_MLE = np.linspace(0.10, 0.24, 20)
 L_OFC = 64
-N_EVENTS = 5_000
-N_SEEDS_MLE = 5
+N_EVENTS = 50_000
+N_SEEDS_MLE = 20
 
 # ABC parameters
 ALPHA_LOW, ALPHA_HIGH = 0.10, 0.24
@@ -39,7 +39,7 @@ def _estimate_b_ofc(alpha_ofc, n_seeds=N_SEEDS_MLE):
         if len(sizes) < 50:
             continue
         try:
-            b = gutenberg_richter_b(np.log10(sizes.astype(float)))
+            b = gutenberg_richter_b(np.log10(sizes.astype(float)), log_scale=True)
             bs.append(b)
         except Exception:
             pass
@@ -64,7 +64,7 @@ def run_mle_calibration(b_emp):
                 if len(sizes) < 50:
                     continue
                 try:
-                    b = gutenberg_richter_b(np.log10(sizes.astype(float)))
+                    b = gutenberg_richter_b(np.log10(sizes.astype(float)), log_scale=True)
                     bs.append(b)
                 except Exception:
                     pass
@@ -151,7 +151,7 @@ def main():
     magnitudes = catalog["magnitude"].dropna().values
     print(f"  {len(magnitudes)} events, M in [{magnitudes.min():.1f}, {magnitudes.max():.1f}]")
 
-    b_emp = gutenberg_richter_b(magnitudes)
+    b_emp = gutenberg_richter_b(magnitudes, log_scale=True)
     print(f"  Empirical b = {b_emp:.4f}")
 
     run_mle_calibration(b_emp)

@@ -18,10 +18,10 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 # experiment parameters
-ALPHA_GRID = np.linspace(0.10, 0.24, 10)
-L_VALUES = [32, 64]
-N_EVENTS = 5_000
-N_SEEDS = 3
+ALPHA_GRID = np.linspace(0.10, 0.24, 20)
+L_VALUES = [32, 64, 128]
+N_EVENTS = 50_000
+N_SEEDS = 10
 
 
 def run_ofc_phase_diagram():
@@ -41,7 +41,8 @@ def run_ofc_phase_diagram():
                     if len(sizes) < 50:
                         continue
                     try:
-                        b = gutenberg_richter_b(np.log10(sizes.astype(float)))
+                        b = gutenberg_richter_b(
+                            np.log10(sizes.astype(float)), log_scale=True)
                         bs.append(b)
                     except Exception:
                         pass
@@ -54,7 +55,9 @@ def run_ofc_phase_diagram():
 
 def plot_ofc_phase_diagram(b_means, b_stds):
     # Plot b-value vs alpha_ofc for each L with std error bars.
-    # L=64: solid line + circle. L=32: dashed line + square.
+    # L=64:  solid  + circle   (o-)
+    # L=32:  dashed + square   (s--)
+    # L=128: dotted + triangle (^:)
     # Vertical dashed line where L=64 b-value first drops below 1.0.
     _ensure_figures_dir()
     _apply_style()
@@ -62,10 +65,9 @@ def plot_ofc_phase_diagram(b_means, b_stds):
     save_path = os.path.join(FIGURES_DIR, "ofc_phase_diagram.pdf")
 
     fig, ax = plt.subplots(figsize=(3.3, 2.5))
-    colors = cm.Oranges(np.linspace(0.4, 0.9, len(L_VALUES)))
+    colors = cm.Oranges(np.linspace(0.35, 0.95, len(L_VALUES)))
 
-    # marker/linestyle per L value
-    _style = {32: ("s", "--"), 64: ("o", "-")}
+    _style = {32: ("s", "--"), 64: ("o", "-"), 128: ("^", ":")}
 
     for i, L in enumerate(L_VALUES):
         mask = ~np.isnan(b_means[i])
