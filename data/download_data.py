@@ -68,22 +68,22 @@ def download_usgs_catalog(
         "Downloading USGS catalog: M>=%.1f from %s to %s",
         min_magnitude, start, end)
 
-    # split by year to avoid USGS row limit per request
+    # Split into quarterly chunks to stay under the USGS 20 000-event limit.
+    # Do NOT include orderby — it triggers HTTP 400 on large result sets.
     start_dt = pd.Timestamp(start)
     end_dt = pd.Timestamp(end)
     chunks = []
 
     current = start_dt
     while current < end_dt:
-        next_year = min(current + pd.DateOffset(years=1), end_dt)
+        next_chunk = min(current + pd.DateOffset(months=3), end_dt)
         params = {
             "format": "csv",
             "starttime": current.strftime("%Y-%m-%d"),
-            "endtime": next_year.strftime("%Y-%m-%d"),
-            "minmagnitude": min_magnitude,
-            "orderby": "time-asc"}
+            "endtime": next_chunk.strftime("%Y-%m-%d"),
+            "minmagnitude": min_magnitude}
         url = _USGS_BASE_URL + "?" + urlencode(params)
-        logger.info("  Fetching %s → %s", current.date(), next_year.date())
+        logger.info("  Fetching %s → %s", current.date(), next_chunk.date())
         try:
             with urllib.request.urlopen(url, timeout=60) as resp:
                 content = resp.read().decode("utf-8")
@@ -92,7 +92,7 @@ def download_usgs_catalog(
                 chunks.append(chunk)
         except Exception as exc:
             logger.warning("  Failed to fetch chunk: %s", exc)
-        current = next_year
+        current = next_chunk
 
     if not chunks:
         raise RuntimeError("No data downloaded from USGS.")
