@@ -19,40 +19,58 @@ from utils.plotting import (
 )
 
 # MLE grid search parameters
-ALPHA_GRID_MLE = np.linspace(0.10, 0.24, 20)
-L_OFC = 128
-N_EVENTS = 50_000
-N_SEEDS_MLE = 20
+ALPHA_GRID_MLE = np.linspace(0.10, 0.24, 10)
+L_OFC = 64
+N_EVENTS = 5_000
+N_SEEDS_MLE = 5
 
 # ABC parameters
 ALPHA_LOW, ALPHA_HIGH = 0.10, 0.24
-ABC_POP_SIZE = 100
-ABC_MAX_POP = 5
+ABC_POP_SIZE = 30
+ABC_MAX_POP = 3
 
 
 def _estimate_b_ofc(alpha_ofc, n_seeds=N_SEEDS_MLE):
-    # run OFC at given alpha_ofc, return mean b-value over multiple seeds
+    # Run OFC at given alpha_ofc; return (mean_b, std_b) over seeds.
     bs = []
     for seed in range(n_seeds):
         sizes = simulate_ofc(L_OFC, alpha_ofc, N_EVENTS, seed=seed)
         sizes = sizes[sizes > 0]
         if len(sizes) < 50:
             continue
-        mags = np.log10(sizes.astype(float))
         try:
-            b = gutenberg_richter_b(mags)
+            b = gutenberg_richter_b(np.log10(sizes.astype(float)))
             bs.append(b)
         except Exception:
             pass
-    return float(np.mean(bs)) if bs else float("nan")
+    if not bs:
+        return float("nan"), float("nan")
+    std = float(np.std(bs, ddof=1)) if len(bs) > 1 else 0.0
+    return float(np.mean(bs)), std
 
 
 def run_mle_calibration(b_emp):
-    # grid search over alpha_ofc, find value closest to empirical b
-    b_sim_grid = np.full(len(ALPHA_GRID_MLE), np.nan)
+    # Grid search over alpha_ofc; find value closest to empirical b.
+    b_sim_grid  = np.full(len(ALPHA_GRID_MLE), np.nan)
+    std_sim_grid = np.full(len(ALPHA_GRID_MLE), np.nan)
 
-    for j, alpha_ofc in enumerate(tqdm(ALPHA_GRID_MLE, desc="OFC MLE calibration")):
-        b_sim_grid[j] = _estimate_b_ofc(alpha_ofc)
+    total = len(ALPHA_GRID_MLE) * N_SEEDS_MLE * N_EVENTS
+    with tqdm(total=total, desc="OFC MLE calibration", unit="ev") as pbar:
+        for j, alpha_ofc in enumerate(ALPHA_GRID_MLE):
+            bs = []
+            for seed in range(N_SEEDS_MLE):
+                sizes = simulate_ofc(L_OFC, alpha_ofc, N_EVENTS, seed=seed, pbar=pbar)
+                sizes = sizes[sizes > 0]
+                if len(sizes) < 50:
+                    continue
+                try:
+                    b = gutenberg_richter_b(np.log10(sizes.astype(float)))
+                    bs.append(b)
+                except Exception:
+                    pass
+            if bs:
+                b_sim_grid[j]  = float(np.mean(bs))
+                std_sim_grid[j] = float(np.std(bs, ddof=1)) if len(bs) > 1 else 0.0
 
     valid = ~np.isnan(b_sim_grid)
     alpha_star = ALPHA_GRID_MLE[valid][np.argmin(np.abs(b_sim_grid[valid] - b_emp))]
@@ -62,22 +80,23 @@ def run_mle_calibration(b_emp):
         param_grid=ALPHA_GRID_MLE,
         alpha_sim=b_sim_grid,
         alpha_emp=b_emp,
-        param_name=r"\alpha_\mathrm{OFC}",
+        param_name=r"\alpha_{\mathrm{OFC}}",
         emp_label="Empirical b (USGS)",
         title="OFC MLE calibration",
         save_path=save_path,
-        p_star=alpha_star)
+        p_star=alpha_star,
+        std_sim=std_sim_grid)
     print(f"  alpha_ofc* = {alpha_star:.4f}  |  Saved: {save_path}")
     return alpha_star, b_sim_grid
 
 
 def run_abc_calibration(b_emp):
-    # ABC-SMC to get posterior distribution over alpha_ofc
+    # ABC-SMC to get posterior distribution over alpha_ofc.
     import pyabc
 
     def model(params):
         alpha_ofc = params["alpha_ofc"]
-        b_sim = _estimate_b_ofc(alpha_ofc, n_seeds=5)
+        b_sim, _ = _estimate_b_ofc(alpha_ofc, n_seeds=3)
         return {"b": b_sim}
 
     def distance(sim, obs):
@@ -108,12 +127,11 @@ def run_abc_calibration(b_emp):
     plot_abc_posterior(
         samples=samples,
         weights=weights,
-        param_name=r"\alpha_\mathrm{OFC}",
+        param_name=r"\alpha_{\mathrm{OFC}}",
         title="OFC ABC posterior",
         save_path=save_path)
     print(f"  Saved ABC posterior: {save_path}")
 
-    # remove temp DB files
     import glob
     for f in glob.glob("ofc_abc*.db"):
         try:
