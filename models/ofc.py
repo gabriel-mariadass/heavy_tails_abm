@@ -57,7 +57,7 @@ def simulate_ofc(L, alpha_ofc, n_events, seed=None, pbar=None):
 
     for event in range(n_events):
         # Loading phase: advance offset so F_true_max reaches F_th.
-        # Because offset shifts all cells equally, heap order is preserved —
+        # Because offset shifts all cells equally, heap order is preserved 
         # no rebuild needed.
         r_max, c_max, f_stored_max = pop_valid()
         push(r_max, c_max)  # put back unchanged

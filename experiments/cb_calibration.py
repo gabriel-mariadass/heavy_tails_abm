@@ -13,8 +13,8 @@ from models.cont_bouchaud import simulate_cb
 from data.download_data import download_stock_returns
 from utils.powerlaw_fit import fit_powerlaw
 from utils.plotting import (
-    plot_cb_calibration_mle,
-    plot_cb_abc_posterior,
+    plot_calibration_mle,
+    plot_abc_posterior,
     FIGURES_DIR,
     _ensure_figures_dir)
 
@@ -54,16 +54,17 @@ def run_mle_calibration(alpha_emp, ticker):
     for j, p in enumerate(tqdm(P_GRID_MLE, desc=f"MLE calibration ({ticker})")):
         alpha_sim_grid[j] = _estimate_alpha_cb(p)
 
-    valid  = ~np.isnan(alpha_sim_grid)
-    p_star = P_GRID_MLE[valid][
-        np.argmin(np.abs(alpha_sim_grid[valid] - alpha_emp))]
+    valid = ~np.isnan(alpha_sim_grid)
+    p_star = P_GRID_MLE[valid][np.argmin(np.abs(alpha_sim_grid[valid] - alpha_emp))]
 
-    save_path = os.path.join(
-        FIGURES_DIR, f"cb_calibration_mle_{ticker.replace('^','')}.pdf")
-    plot_cb_calibration_mle(
-        p_grid=P_GRID_MLE,
+    save_path = os.path.join(FIGURES_DIR, f"cb_calibration_mle_{ticker.replace('^','')}.pdf")
+    plot_calibration_mle(
+        param_grid=P_GRID_MLE,
         alpha_sim=alpha_sim_grid,
         alpha_emp=alpha_emp,
+        param_name="p",
+        emp_label=f"Empirical ({ticker})",
+        title=f"CB MLE calibration - {ticker}",
         save_path=save_path,
         p_star=p_star)
     print(f"  p* = {p_star:.4f}  -  Saved: {save_path}")
@@ -102,11 +103,12 @@ def run_abc_calibration(alpha_emp, ticker):
     samples = df["p"].values
     weights = w
 
-    save_path = os.path.join(
-        FIGURES_DIR, f"cb_calibration_abc_{ticker.replace('^','')}.pdf")
-    plot_cb_abc_posterior(
+    save_path = os.path.join(FIGURES_DIR, f"cb_calibration_abc_{ticker.replace('^','')}.pdf")
+    plot_abc_posterior(
         samples=samples,
         weights=weights,
+        param_name="p",
+        title=f"CB ABC posterior - {ticker}",
         save_path=save_path)
     print(f"  Saved ABC posterior: {save_path}")
 

@@ -41,7 +41,7 @@ def fit_powerlaw(data):
         "fit": fit}
 
 
-def gutenberg_richter_b(magnitudes):
+def gutenberg_richter_b(magnitudes, m_min=None):
     # Estimate G-R b-value by MLE: b = log10(e) / (mean(M) - M_min)
     # Input must already be in magnitude units (Richter scale or log10(sizes)).
     magnitudes = np.asarray(magnitudes, dtype=float)
@@ -49,7 +49,10 @@ def gutenberg_richter_b(magnitudes):
     if magnitudes.size == 0:
         raise ValueError("No valid magnitudes.")
 
-    m_min = magnitudes.min()
+    if m_min is None:
+        m_min = magnitudes.min()
+    magnitudes = magnitudes[magnitudes >= m_min]
+
     mean_m = magnitudes.mean()
     if mean_m <= m_min:
         raise ValueError("mean(M) must be greater than M_min for MLE b estimation.")
