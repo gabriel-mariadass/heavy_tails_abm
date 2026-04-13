@@ -12,8 +12,8 @@ from models.ofc import simulate_ofc
 from data.download_data import download_usgs_catalog
 from utils.powerlaw_fit import gutenberg_richter_b
 from utils.plotting import (
-    plot_calibration_mle,
-    plot_abc_posterior,
+    plot_ofc_calibration_mle,
+    plot_ofc_abc_posterior,
     FIGURES_DIR,
     _ensure_figures_dir,
 )
@@ -51,7 +51,7 @@ def _estimate_b_ofc(alpha_ofc, n_seeds=N_SEEDS_MLE):
 
 def run_mle_calibration(b_emp):
     # Grid search over alpha_ofc; find value closest to empirical b.
-    b_sim_grid  = np.full(len(ALPHA_GRID_MLE), np.nan)
+    b_sim_grid   = np.full(len(ALPHA_GRID_MLE), np.nan)
     std_sim_grid = np.full(len(ALPHA_GRID_MLE), np.nan)
 
     total = len(ALPHA_GRID_MLE) * N_SEEDS_MLE * N_EVENTS
@@ -59,7 +59,8 @@ def run_mle_calibration(b_emp):
         for j, alpha_ofc in enumerate(ALPHA_GRID_MLE):
             bs = []
             for seed in range(N_SEEDS_MLE):
-                sizes = simulate_ofc(L_OFC, alpha_ofc, N_EVENTS, seed=seed, pbar=pbar)
+                sizes = simulate_ofc(L_OFC, alpha_ofc, N_EVENTS, seed=seed,
+                                     pbar=pbar)
                 sizes = sizes[sizes > 0]
                 if len(sizes) < 50:
                     continue
@@ -69,22 +70,21 @@ def run_mle_calibration(b_emp):
                 except Exception:
                     pass
             if bs:
-                b_sim_grid[j]  = float(np.mean(bs))
-                std_sim_grid[j] = float(np.std(bs, ddof=1)) if len(bs) > 1 else 0.0
+                b_sim_grid[j]   = float(np.mean(bs))
+                std_sim_grid[j] = float(
+                    np.std(bs, ddof=1)) if len(bs) > 1 else 0.0
 
-    valid = ~np.isnan(b_sim_grid)
-    alpha_star = ALPHA_GRID_MLE[valid][np.argmin(np.abs(b_sim_grid[valid] - b_emp))]
+    valid       = ~np.isnan(b_sim_grid)
+    alpha_star  = ALPHA_GRID_MLE[valid][
+        np.argmin(np.abs(b_sim_grid[valid] - b_emp))]
 
     save_path = os.path.join(FIGURES_DIR, "ofc_calibration_mle.pdf")
-    plot_calibration_mle(
-        param_grid=ALPHA_GRID_MLE,
-        alpha_sim=b_sim_grid,
-        alpha_emp=b_emp,
-        param_name=r"\alpha_{\mathrm{OFC}}",
-        emp_label="Empirical b (USGS)",
-        title="OFC MLE calibration",
+    plot_ofc_calibration_mle(
+        alpha_grid=ALPHA_GRID_MLE,
+        b_sim=b_sim_grid,
+        b_emp=b_emp,
         save_path=save_path,
-        p_star=alpha_star,
+        alpha_star=alpha_star,
         std_sim=std_sim_grid)
     print(f"  alpha_ofc* = {alpha_star:.4f}  |  Saved: {save_path}")
     return alpha_star, b_sim_grid
@@ -124,11 +124,9 @@ def run_abc_calibration(b_emp):
     weights = w
 
     save_path = os.path.join(FIGURES_DIR, "ofc_calibration_abc.pdf")
-    plot_abc_posterior(
+    plot_ofc_abc_posterior(
         samples=samples,
         weights=weights,
-        param_name=r"\alpha_{\mathrm{OFC}}",
-        title="OFC ABC posterior",
         save_path=save_path)
     print(f"  Saved ABC posterior: {save_path}")
 
@@ -148,11 +146,13 @@ def main():
         min_magnitude=2.0,
         start="2000-01-01",
         end="2024-01-01")
-    magnitudes = catalog["magnitude"].dropna().values
-    print(f"  {len(magnitudes)} events, M in [{magnitudes.min():.1f}, {magnitudes.max():.1f}]")
 
+    magnitudes = catalog["magnitude"].dropna().values
+    magnitudes = magnitudes[magnitudes >= 4.5]
+    print(f"  {len(magnitudes)} events, M in "
+          f"[{magnitudes.min():.1f}, {magnitudes.max():.1f}]")
     b_emp = gutenberg_richter_b(magnitudes)
-    print(f"empirical b = {b_emp:.4f}")
+    print(f"  empirical b = {b_emp:.4f}")
 
     run_mle_calibration(b_emp)
 
