@@ -41,23 +41,13 @@ def fit_powerlaw(data):
         "fit": fit}
 
 
-def gutenberg_richter_b(magnitudes, log_scale=False):
+def gutenberg_richter_b(magnitudes):
     # Estimate G-R b-value by MLE: b = log10(e) / (mean(M) - M_min)
-    #
-    # log_scale=False (default): input is raw sizes/counts; log10 is applied
-    #   internally before the formula (e.g. avalanche sizes from OFC).
-    # log_scale=True: input is already in magnitude/log units; used as-is
-    #   (e.g. USGS Richter magnitudes, or pre-converted log10(sizes)).
+    # Input must already be in magnitude units (Richter scale or log10(sizes)).
     magnitudes = np.asarray(magnitudes, dtype=float)
     magnitudes = magnitudes[np.isfinite(magnitudes)]
     if magnitudes.size == 0:
         raise ValueError("No valid magnitudes.")
-
-    if not log_scale:
-        magnitudes = magnitudes[magnitudes > 0]
-        if magnitudes.size == 0:
-            raise ValueError("No positive values to take log10 of.")
-        magnitudes = np.log10(magnitudes)
 
     m_min = magnitudes.min()
     mean_m = magnitudes.mean()

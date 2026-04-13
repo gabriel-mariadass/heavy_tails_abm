@@ -42,7 +42,7 @@ def run_ofc_phase_diagram():
                         continue
                     try:
                         b = gutenberg_richter_b(
-                            np.log10(sizes.astype(float)), log_scale=True)
+                            np.log10(sizes.astype(float)))
                         bs.append(b)
                     except Exception:
                         pass
@@ -85,9 +85,9 @@ def plot_ofc_phase_diagram(b_means, b_stds):
         b64 = b_means[idx64]
         below = (~np.isnan(b64)) & (b64 < 1.0)
         if below.any():
-            alpha_crit = ALPHA_GRID[below][0]
-            ax.axvline(alpha_crit, linestyle="--", color="dimgray",
-                       linewidth=0.8, label="b = 1 (empirical G-R)")
+            alpha_cross = ALPHA_GRID[below][0]
+            ax.axvline(alpha_cross, linestyle="--", color="dimgray",
+                       linewidth=0.8, label=f"b=1 crossing (\u03b1={alpha_cross:.2f})")
 
     ax.set_xlabel(r"$\alpha_{\mathrm{OFC}}$")
     ax.set_ylabel("b-value (G-R)")
