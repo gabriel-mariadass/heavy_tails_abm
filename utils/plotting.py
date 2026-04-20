@@ -51,19 +51,35 @@ def plot_ccdf(data, label, ax, color, fit_result=None):
     ax.plot(data, ccdf, color=color, linewidth=1.0, label=label)
 
     if fit_result is not None:
-        alpha = fit_result["alpha"]
-        xmin  = fit_result["xmin"]
-        xs = np.logspace(np.log10(xmin), np.log10(data.max()), 200)
-        # power-law CCDF: P(X > x) ~ (x/xmin)^-(alpha-1)
-        ys = (xs / xmin) ** (-(alpha - 1))
-        # scale to match empirical at xmin
-        idx = np.searchsorted(data, xmin)
-        if idx < n:
-            ys *= ccdf[idx] / ys[0]
-        ax.plot(
-            xs, ys,
-            linestyle="--", color=color, linewidth=0.8,
-            label=r"Power law $\alpha={:.2f}$".format(alpha))
+        from scipy.integrate import quad
+        import powerlaw as _powerlaw
+
+        def tpl_pdf(t, a, lam):
+            return t ** (-a) * np.exp(-lam * t)
+
+        xmin_tpl = 2.0
+        fit_tpl = _powerlaw.Fit(data[data >= xmin_tpl], xmin=xmin_tpl, discrete=True, verbose=False)
+        alpha_tpl  = fit_tpl.truncated_power_law.alpha
+        lambda_tpl = fit_tpl.truncated_power_law.Lambda
+
+        norm = quad(tpl_pdf, xmin_tpl, np.inf, args=(alpha_tpl, lambda_tpl))[0]
+        xs = np.logspace(np.log10(xmin_tpl), np.log10(data[data >= xmin_tpl].max()), 100)
+        ys = np.array([quad(tpl_pdf, xi, np.inf, args=(alpha_tpl, lambda_tpl))[0] / norm for xi in xs])
+        emp_at_xmin = np.mean(data >= xmin_tpl)
+        ys_scaled = ys * emp_at_xmin
+
+        ax.plot(xs, ys_scaled, linestyle="--", color="steelblue", linewidth=0.8, label="Truncated PL fit")
+
+        annotation = f"alpha={alpha_tpl:.2f}, 1/lambda={1/lambda_tpl:.1f}"
+        ax.text(0.97, 0.97, annotation, transform=ax.transAxes, fontsize=7,
+                ha="right", va="top")
+
+        print(f"TPL params: alpha={alpha_tpl:.3f}, lambda={lambda_tpl:.4f}, 1/lambda={1/lambda_tpl:.1f}")
+        print(f"xmin={xmin_tpl}, n_tail={len(data[data >= xmin_tpl])}")
+        for dist in ["lognormal", "exponential", "power_law", "stretched_exponential"]:
+            R, p = fit_tpl.distribution_compare("truncated_power_law", dist, normalized_ratio=True)
+            winner = "TPL wins" if R > 0 else f"{dist} wins"
+            print(f"TPL vs {dist:22s}: R={R:+.2f}, p={p:.3f} -> {winner}")
 
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -76,6 +92,13 @@ def plot_ccdf(data, label, ax, color, fit_result=None):
     xl = ax.get_xlim()
     if xl[0] <= 0:
         ax.set_xlim(left=data[0])
+
+    # xlim right: hide the single-event tail drop by stopping at the last x
+    # where P(X>x) > 1/N (i.e. at least two observations lie beyond x)
+    mask = ccdf > 1.0 / n
+    if mask.any():
+        ax.set_xlim(right=data[mask][-1])
+
     yl = ax.get_ylim()
     if yl[0] <= 0:
         ax.set_ylim(bottom=1.0 / (n + 1))

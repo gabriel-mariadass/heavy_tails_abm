@@ -2,42 +2,62 @@
 
 import numpy as np
 import powerlaw
+from scipy import stats
 
 
-def fit_powerlaw(data):
-    # Fit a power law to data, compare against lognormal and exponential
+def fit_powerlaw(data, xmin=None, discrete=False):
+    # Fit a power law to data, compare against lognormal and exponential.
+    # xmin: if provided, data is filtered to data >= xmin and xmin is fixed in the fit.
+    # discrete: passed to powerlaw.Fit (use True for integer-valued data).
     data = np.asarray(data, dtype=float)
     data = data[data > 0]
     if data.size == 0:
         raise ValueError("No positive values found in data.")
 
-    fit = powerlaw.Fit(data, discrete=False, verbose=False)
+    if xmin is not None:
+        data = data[data >= xmin]
+        fit = powerlaw.Fit(data, xmin=xmin, discrete=discrete, verbose=False)
+    else:
+        fit = powerlaw.Fit(data, discrete=discrete, verbose=False)
 
-    # Note: fit.power_law.KS() has a bug in some powerlaw versions (calls
-    # compute_distance_metrics without self), so we read D directly. It is
-    # computed during powerlaw.Fit() and is identical to what KS() returns.
-    ks_stat = fit.power_law.D
+    xmin  = fit.power_law.xmin
+    alpha = fit.power_law.alpha
 
-    # bootstrap p-value, 100 samples to keep it fast
-    try:
-        p_val = fit.power_law.p_value(data, n_iter=100)
-    except Exception:
-        p_val = float("nan")
+    # Manual KS test against the theoretical power-law CDF on the tail.
+    # fit.power_law.p_value() is broken in some powerlaw versions (returns nan),
+    # so we use scipy.stats.kstest directly.
+    data_tail = data[data >= xmin]
+    ks_stat, p_val = stats.kstest(
+        data_tail,
+        lambda x: 1.0 - (xmin / x) ** (alpha - 1)
+    )
+
+    # Truncated power law parameters
+    alpha_tpl  = fit.truncated_power_law.alpha
+    lambda_tpl = fit.truncated_power_law.Lambda
 
     # likelihood ratio tests vs alternatives
-    R_ln, p_ln = fit.distribution_compare("power_law", "lognormal", normalized_ratio=True)
-    R_exp, p_exp = fit.distribution_compare("power_law", "exponential", normalized_ratio=True)
+    R_ln,  p_ln  = fit.distribution_compare("power_law", "lognormal",          normalized_ratio=True)
+    R_exp, p_exp = fit.distribution_compare("power_law", "exponential",         normalized_ratio=True)
+    R_pl_vs_tpl,  p_pl_vs_tpl  = fit.distribution_compare("power_law",          "truncated_power_law", normalized_ratio=True)
+    R_tpl_vs_ln,  p_tpl_vs_ln  = fit.distribution_compare("truncated_power_law","lognormal",           normalized_ratio=True)
 
     return {
         "alpha": fit.power_law.alpha,
         "xmin": fit.power_law.xmin,
         "sigma": fit.power_law.sigma,
+        "alpha_tpl": alpha_tpl,
+        "lambda_tpl": lambda_tpl,
         "KS_statistic": ks_stat,
         "p_value": p_val,
         "R_lognormal": R_ln,
         "p_lognormal": p_ln,
         "R_exponential": R_exp,
         "p_exponential": p_exp,
+        "R_pl_vs_tpl": R_pl_vs_tpl,
+        "p_pl_vs_tpl": p_pl_vs_tpl,
+        "R_tpl_vs_lognormal": R_tpl_vs_ln,
+        "p_tpl_vs_lognormal": p_tpl_vs_ln,
         "fit": fit}
 
 
